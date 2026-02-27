@@ -135,25 +135,78 @@ st.markdown("""
     .kpi-value.info { color: #818cf8; }
 
     /* ── Alert Cards ── */
+    .alerts-container {
+        max-height: 420px;
+        overflow-y: auto;
+        padding-right: 4px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(248,113,113,0.3) transparent;
+    }
+    .alerts-container::-webkit-scrollbar {
+        width: 4px;
+    }
+    .alerts-container::-webkit-scrollbar-thumb {
+        background: rgba(248,113,113,0.3);
+        border-radius: 4px;
+    }
     .alert-card {
         background: linear-gradient(135deg, #2d1b1b 0%, #1a1a2e 100%);
         border: 1px solid rgba(248, 113, 113, 0.4);
         border-left: 4px solid #f87171;
         border-radius: 12px;
-        padding: 14px 18px;
-        margin-bottom: 10px;
+        padding: 12px 14px;
+        margin-bottom: 8px;
         box-shadow: 0 2px 8px rgba(248, 113, 113, 0.1);
+        animation: alertPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    .alert-card:nth-child(1) { animation-delay: 0s; }
+    .alert-card:nth-child(2) { animation-delay: 0.08s; }
+    .alert-card:nth-child(3) { animation-delay: 0.16s; }
+    .alert-card:nth-child(4) { animation-delay: 0.24s; }
+    .alert-card:nth-child(5) { animation-delay: 0.32s; }
+    @keyframes alertPopIn {
+        0% {
+            opacity: 0;
+            transform: translateX(30px) scale(0.95);
+        }
+        100% {
+            opacity: 1;
+            transform: translateX(0) scale(1);
+        }
     }
     .alert-card .alert-title {
         font-size: 13px;
         font-weight: 600;
         color: #f87171;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     .alert-card .alert-detail {
-        font-size: 12px;
+        font-size: 11px;
         color: #94a3b8;
-        margin: 2px 0;
+        margin: 1px 0;
+        line-height: 1.4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .alert-card .alert-detail strong {
+        color: #e2e8f0;
+    }
+    .alert-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(248, 113, 113, 0.15);
+        border: 1px solid rgba(248, 113, 113, 0.3);
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 12px;
+        color: #f87171;
+        font-weight: 600;
+        margin-bottom: 8px;
     }
 
     /* ── Section Titles ── */
@@ -387,10 +440,10 @@ def render_transaction_feed(df):
         st.info("No transactions yet. Start the pipeline to see live data.")
         return
 
-    # Select display columns (matching the actual dataset)
+    # Select display columns
     display_cols = []
-    for c in ["transaction_id", "channel", "amount_src", "customer_id",
-              "ip_country", "kyc_tier", "device_trust_score",
+    for c in ["username", "email", "channel", "amount_src",
+              "ip_country", "kyc_tier",
               "fraud_probability", "prediction", "timestamp"]:
         if c in df.columns:
             display_cols.append(c)
@@ -420,13 +473,12 @@ def render_transaction_feed(df):
 
     # Rename for display
     rename_map = {
-        "transaction_id": "Transaction ID",
+        "username": "Username",
+        "email": "Email",
         "channel": "Channel",
         "amount_src": "Amount",
-        "customer_id": "Customer",
         "ip_country": "Country",
         "kyc_tier": "KYC Tier",
-        "device_trust_score": "Device Trust",
         "fraud_probability": "Fraud Prob",
         "prediction": "Status",
         "timestamp": "Timestamp",
@@ -444,14 +496,20 @@ def render_transaction_feed(df):
 
 
 def render_fraud_alerts(alerts):
-    """Render the fraud alerts panel."""
+    """Render the fraud alerts panel with scrollable container and pop-in animation."""
     st.markdown('<div class="section-title">🚨 Fraud Alerts</div>', unsafe_allow_html=True)
 
     if not alerts:
         st.info("No fraud alerts detected yet.")
         return
 
-    for alert in alerts[:10]:
+    alert_count = len(alerts)
+    st.markdown(f'<div class="alert-count">🔔 {alert_count} alert{"s" if alert_count != 1 else ""}</div>', unsafe_allow_html=True)
+
+    # Build all alert cards inside a scrollable container
+    cards_html = '<div class="alerts-container">'
+
+    for alert in alerts[:15]:
         data = alert.get("data", {})
         if isinstance(data, str):
             import json
@@ -460,22 +518,25 @@ def render_fraud_alerts(alerts):
             except Exception:
                 data = {}
 
-        tx_id = alert.get("transaction_id", data.get("transaction_id", "N/A"))
+        username = data.get("username", "N/A")
+        email = data.get("email", "N/A")
         amount = data.get("amount_src", 0)
         prob = data.get("fraud_probability", 0)
         channel = data.get("channel", "N/A")
-        country = data.get("ip_country", "N/A")
+        country = data.get("ip_country", "N/A").upper()
         risk = data.get("risk_score_internal", 0)
-        ts = alert.get("timestamp", "")
 
-        st.markdown(f"""
+        cards_html += f'''
         <div class="alert-card">
-            <div class="alert-title">⚠️ Fraud Alert — {tx_id[:12]}...</div>
-            <div class="alert-detail">💰 Amount: <strong>${amount:,.2f}</strong> | Channel: <strong>{channel}</strong> | Country: <strong>{country.upper()}</strong></div>
-            <div class="alert-detail">🎯 Probability: <strong>{prob:.4f}</strong> | Risk Score: <strong>{risk:.3f}</strong></div>
-            <div class="alert-detail">🕐 {ts}</div>
+            <div class="alert-title">⚠️ {username}</div>
+            <div class="alert-detail">👤 {email}</div>
+            <div class="alert-detail">💰 <strong>${amount:,.2f}</strong> · {channel} · {country}</div>
+            <div class="alert-detail">🎯 Prob: <strong>{prob:.3f}</strong> · Risk: <strong>{risk:.3f}</strong></div>
         </div>
-        """, unsafe_allow_html=True)
+        '''
+
+    cards_html += '</div>'
+    st.markdown(cards_html, unsafe_allow_html=True)
 
 
 def render_charts(mongo):

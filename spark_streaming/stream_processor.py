@@ -45,17 +45,17 @@ def create_spark_session():
     )
 
 
-# Schema matching the Kafka producer JSON messages (digital wallet dataset)
+# Schema matching the Kafka producer JSON messages (streaming_data.csv)
 TRANSACTION_SCHEMA = StructType([
     StructField("transaction_id", StringType(), True),
     StructField("customer_id", StringType(), True),
+    StructField("username", StringType(), True),
+    StructField("email", StringType(), True),
     StructField("timestamp", StringType(), True),
     StructField("ingestion_time", DoubleType(), True),
     StructField("channel", StringType(), True),
     StructField("amount_src", DoubleType(), True),
-    StructField("device_id", StringType(), True),
     StructField("new_device", StringType(), True),
-    StructField("ip_address", StringType(), True),
     StructField("ip_country", StringType(), True),
     StructField("location_mismatch", StringType(), True),
     StructField("ip_risk_score", DoubleType(), True),
@@ -144,7 +144,8 @@ def process_batch(batch_df, batch_id, model):
 
     # ── Collect results ──
     results = predictions.select(
-        "transaction_id", "customer_id", "timestamp", "channel",
+        "transaction_id", "customer_id", "username", "email",
+        "timestamp", "channel",
         "amount_src", "ip_country", "ip_risk_score", "kyc_tier",
         "account_age_days", "device_trust_score",
         "new_device_flag", "location_mismatch_flag",

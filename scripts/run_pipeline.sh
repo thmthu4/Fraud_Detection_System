@@ -84,7 +84,7 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Step 3/4: Starting Kafka Producer"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-python3 kafka_producer/producer.py --dataset "$DATASET" --delay 50 &
+python3 kafka_producer/producer.py --dataset "data/streaming_data.csv" --delay 50 &
 PRODUCER_PID=$!
 echo "   PID: $PRODUCER_PID"
 
