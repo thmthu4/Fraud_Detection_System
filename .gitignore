@@ -1,0 +1,40 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Spark
+metastore_db/
+derby.log
+spark-warehouse/
+*.jar
+
+# Models (large binary files)
+models/
+
+# Data (include dataset in repo for reproducibility)
+# data/*.csv
+
+# Environment (contains secrets)
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Checkpoints
+/tmp/fraud_detection_checkpoint/

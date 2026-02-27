@@ -1,0 +1,17 @@
+# ─── Core ───
+pyspark==3.5.1
+kafka-python-ng==2.2.3
+redis==5.0.1
+pymongo==4.6.1
+
+# ─── Dashboard ───
+streamlit==1.31.0
+plotly==5.18.0
+
+# ─── Data Processing ───
+pandas==2.1.4
+numpy==1.26.2
+scikit-learn==1.3.2
+
+# ─── Utilities ───
+python-dotenv==1.0.0
