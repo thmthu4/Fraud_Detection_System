@@ -1,13 +1,5 @@
 """
 Streamlit Dashboard — Real-Time Fraud Detection Monitor.
-
-Clean, professional dashboard with:
-- KPI metric cards
-- Full-width transaction feed
-- Horizontal fraud alert cards
-- Analytics charts
-- Model performance metrics
-- Auto-refreshing every 5 seconds
 """
 
 import sys
@@ -20,26 +12,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from config import settings
 
-# ─────────────────────────────────────────────
-# Page Configuration
-# ─────────────────────────────────────────────
 st.set_page_config(
     page_title="Fraud Detection — Live Monitor",
-    page_icon="🛡️",
+    page_icon="shield",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-
-# ─────────────────────────────────────────────
-# Custom CSS
-# ─────────────────────────────────────────────
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -49,7 +33,6 @@ st.markdown("""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Header */
     .dash-header {
         background: #161b22;
         border: 1px solid #30363d;
@@ -62,13 +45,13 @@ st.markdown("""
     }
     .dash-header h1 {
         margin: 0;
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 600;
         color: #f0f6fc;
     }
     .dash-header .sub {
         color: #8b949e;
-        font-size: 13px;
+        font-size: 12px;
         margin-top: 2px;
     }
     .live-tag {
@@ -79,7 +62,7 @@ st.markdown("""
         border: 1px solid #238636;
         padding: 4px 12px;
         border-radius: 16px;
-        font-size: 12px;
+        font-size: 11px;
         color: #3fb950;
         font-weight: 500;
     }
@@ -96,7 +79,6 @@ st.markdown("""
         50% { opacity: 0.3; }
     }
 
-    /* KPI Row */
     .kpi {
         background: #161b22;
         border: 1px solid #30363d;
@@ -113,7 +95,7 @@ st.markdown("""
         margin-bottom: 6px;
     }
     .kpi .value {
-        font-size: 28px;
+        font-size: 26px;
         font-weight: 700;
         color: #f0f6fc;
     }
@@ -122,18 +104,18 @@ st.markdown("""
     .kpi .value.yellow { color: #d29922; }
     .kpi .value.blue { color: #58a6ff; }
 
-    /* Section headers */
     .sec-head {
-        font-size: 15px;
+        font-size: 14px;
         font-weight: 600;
         color: #f0f6fc;
         margin: 20px 0 10px 0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
-    /* Alert strip */
     .alert-strip {
         display: flex;
-        gap: 12px;
+        gap: 10px;
         overflow-x: auto;
         padding: 4px 0 10px 0;
     }
@@ -146,30 +128,30 @@ st.markdown("""
         border-left: 3px solid #f85149;
         border-radius: 6px;
         padding: 10px 14px;
-        min-width: 240px;
+        min-width: 230px;
         flex-shrink: 0;
     }
-    .a-card .a-name {
-        font-size: 13px;
-        font-weight: 600;
+    .a-card .a-name { font-size: 13px; font-weight: 600; color: #f85149; margin-bottom: 2px; }
+    .a-card .a-email { font-size: 11px; color: #8b949e; margin-bottom: 6px; }
+    .a-card .a-info { font-size: 11px; color: #8b949e; line-height: 1.6; }
+    .a-card .a-info b { color: #c9d1d9; }
+
+    .alert-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+    }
+    .alert-count {
+        font-size: 11px;
         color: #f85149;
-        margin-bottom: 2px;
-    }
-    .a-card .a-email {
-        font-size: 11px;
-        color: #8b949e;
-        margin-bottom: 6px;
-    }
-    .a-card .a-info {
-        font-size: 11px;
-        color: #8b949e;
-        line-height: 1.6;
-    }
-    .a-card .a-info b {
-        color: #c9d1d9;
+        background: #f8514915;
+        border: 1px solid #f8514930;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-weight: 500;
     }
 
-    /* Model metric */
     .m-badge {
         display: inline-block;
         background: #161b22;
@@ -178,19 +160,9 @@ st.markdown("""
         padding: 8px 14px;
         text-align: center;
     }
-    .m-badge .m-label {
-        font-size: 10px;
-        color: #8b949e;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .m-badge .m-val {
-        font-size: 18px;
-        font-weight: 700;
-        color: #58a6ff;
-    }
+    .m-badge .m-label { font-size: 10px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+    .m-badge .m-val { font-size: 18px; font-weight: 700; color: #58a6ff; }
 
-    /* Hide Streamlit stuff */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
     .stDeployButton { display: none; }
@@ -199,9 +171,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────
-# Data Loading
-# ─────────────────────────────────────────────
+# ── Data Loading ──
 @st.cache_resource
 def get_mongo_client():
     try:
@@ -209,7 +179,6 @@ def get_mongo_client():
         return MongoDBClient()
     except Exception:
         return None
-
 
 @st.cache_resource
 def get_redis_client():
@@ -219,12 +188,8 @@ def get_redis_client():
     except Exception:
         return None
 
-
 def load_stats(mongo, redis_store):
-    stats = {
-        "total_transactions": 0, "total_fraud": 0,
-        "fraud_rate": 0.0, "avg_amount": 0.0,
-    }
+    stats = {"total_transactions": 0, "total_fraud": 0, "fraud_rate": 0.0, "avg_amount": 0.0}
     if redis_store:
         try:
             rs = redis_store.get_global_stats()
@@ -243,7 +208,6 @@ def load_stats(mongo, redis_store):
         except Exception:
             pass
     return stats
-
 
 def load_recent_transactions(mongo, redis_store, limit=30):
     if redis_store:
@@ -264,7 +228,6 @@ def load_recent_transactions(mongo, redis_store, limit=30):
             pass
     return pd.DataFrame()
 
-
 def load_fraud_alerts(redis_store, limit=20):
     if redis_store:
         try:
@@ -272,7 +235,6 @@ def load_fraud_alerts(redis_store, limit=20):
         except Exception:
             pass
     return []
-
 
 def load_model_metrics(mongo):
     if mongo:
@@ -285,7 +247,6 @@ def load_model_metrics(mongo):
             pass
     return None
 
-
 def load_fraud_by_channel(mongo):
     if mongo:
         try:
@@ -293,7 +254,6 @@ def load_fraud_by_channel(mongo):
         except Exception:
             pass
     return []
-
 
 def load_timeline(mongo):
     if mongo:
@@ -304,14 +264,12 @@ def load_timeline(mongo):
     return []
 
 
-# ─────────────────────────────────────────────
-# Render Functions
-# ─────────────────────────────────────────────
+# ── Render Functions ──
 def render_header():
     st.markdown("""
     <div class="dash-header">
         <div>
-            <h1>🛡️ Fraud Detection Monitor</h1>
+            <h1>Fraud Detection Monitor</h1>
             <div class="sub">Real-time digital wallet transaction analysis</div>
         </div>
         <div class="live-tag">LIVE</div>
@@ -322,30 +280,18 @@ def render_header():
 def render_kpis(stats):
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f"""<div class="kpi">
-            <div class="label">Total Transactions</div>
-            <div class="value blue">{stats['total_transactions']:,}</div>
-        </div>""", unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi"><div class="label">Total Transactions</div><div class="value blue">{stats["total_transactions"]:,}</div></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown(f"""<div class="kpi">
-            <div class="label">Fraud Detected</div>
-            <div class="value red">{stats['total_fraud']:,}</div>
-        </div>""", unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi"><div class="label">Fraud Detected</div><div class="value red">{stats["total_fraud"]:,}</div></div>', unsafe_allow_html=True)
     with c3:
-        st.markdown(f"""<div class="kpi">
-            <div class="label">Fraud Rate</div>
-            <div class="value yellow">{stats['fraud_rate']:.2f}%</div>
-        </div>""", unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi"><div class="label">Fraud Rate</div><div class="value yellow">{stats["fraud_rate"]:.2f}%</div></div>', unsafe_allow_html=True)
     with c4:
         avg = stats.get("avg_amount", 0)
-        st.markdown(f"""<div class="kpi">
-            <div class="label">Avg Transaction</div>
-            <div class="value green">${avg:,.2f}</div>
-        </div>""", unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi"><div class="label">Avg Transaction</div><div class="value green">${avg:,.2f}</div></div>', unsafe_allow_html=True)
 
 
 def render_transactions(df):
-    st.markdown('<div class="sec-head">📋 Recent Transactions</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-head">Recent Transactions</div>', unsafe_allow_html=True)
     if df.empty:
         st.info("No transactions yet. Start the pipeline to see live data.")
         return
@@ -357,16 +303,12 @@ def render_transactions(df):
         cols = df.columns.tolist()[:8]
 
     tdf = df[cols].copy()
-
     if "amount_src" in tdf.columns:
-        tdf["amount_src"] = tdf["amount_src"].apply(
-            lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00")
+        tdf["amount_src"] = tdf["amount_src"].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "$0.00")
     if "fraud_probability" in tdf.columns:
-        tdf["fraud_probability"] = tdf["fraud_probability"].apply(
-            lambda x: f"{x:.4f}" if pd.notna(x) else "0.0000")
+        tdf["fraud_probability"] = tdf["fraud_probability"].apply(lambda x: f"{x:.4f}" if pd.notna(x) else "0.0000")
     if "prediction" in tdf.columns:
-        tdf["prediction"] = tdf["prediction"].apply(
-            lambda x: "🚨 FRAUD" if x == 1.0 else "✅ Legit")
+        tdf["prediction"] = tdf["prediction"].apply(lambda x: "FRAUD" if x == 1.0 else "Legit")
 
     tdf = tdf.rename(columns={
         "username": "Name", "email": "Email", "channel": "Channel",
@@ -374,7 +316,6 @@ def render_transactions(df):
         "kyc_tier": "KYC", "fraud_probability": "Fraud Prob",
         "prediction": "Status",
     })
-
     st.dataframe(tdf, use_container_width=True, hide_index=True, height=400)
 
 
@@ -383,10 +324,13 @@ def render_alerts(alerts):
         return
 
     n = len(alerts)
-    st.markdown(f'<div class="sec-head">🚨 Incoming Fraud Alerts ({n})</div>',
-                unsafe_allow_html=True)
+    st.markdown(f'''
+    <div class="alert-header">
+        <div class="sec-head" style="margin:0">Fraud Alerts</div>
+        <div class="alert-count">{n} flagged</div>
+    </div>
+    ''', unsafe_allow_html=True)
 
-    # Render each alert card individually to avoid Streamlit HTML truncation
     cards = []
     for alert in alerts[:12]:
         data = alert.get("data", alert)
@@ -408,8 +352,8 @@ def render_alerts(alerts):
             prob = float(prob)
         except (ValueError, TypeError):
             prob = 0.0
-        ch = data.get("channel", "—")
-        co = str(data.get("ip_country", "—")).upper()
+        ch = data.get("channel", "-")
+        co = str(data.get("ip_country", "-")).upper()
         risk = data.get("risk_score_internal", 0)
         try:
             risk = float(risk)
@@ -418,42 +362,34 @@ def render_alerts(alerts):
 
         cards.append(
             f'<div class="a-card">'
-            f'<div class="a-name">⚠️ {name}</div>'
+            f'<div class="a-name">{name}</div>'
             f'<div class="a-email">{email}</div>'
-            f'<div class="a-info">💰 <b>${amt:,.2f}</b> · {ch} · {co}<br>'
-            f'🎯 Prob: <b>{prob:.3f}</b> · Risk: <b>{risk:.3f}</b></div>'
+            f'<div class="a-info"><b>${amt:,.2f}</b> &middot; {ch} &middot; {co}<br>'
+            f'Prob: <b>{prob:.3f}</b> &middot; Risk: <b>{risk:.3f}</b></div>'
             f'</div>'
         )
 
-    # Render as horizontal scrollable strip
-    strip_html = '<div class="alert-strip">' + ''.join(cards) + '</div>'
-    st.markdown(strip_html, unsafe_allow_html=True)
+    st.markdown('<div class="alert-strip">' + ''.join(cards) + '</div>', unsafe_allow_html=True)
 
 
 def render_charts(mongo):
-    st.markdown('<div class="sec-head">📊 Analytics</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-head">Analytics</div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
+
+    chart_theme = dict(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#8b949e", family="Inter"), margin=dict(t=36, b=36, l=36, r=20),
+        height=300,
+    )
 
     with c1:
         fbc = load_fraud_by_channel(mongo)
         if fbc:
             ch_df = pd.DataFrame(fbc).rename(columns={"_id": "channel"})
             fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=ch_df["channel"], y=ch_df["total"],
-                name="Total", marker_color="#58a6ff", opacity=0.6,
-            ))
-            fig.add_trace(go.Bar(
-                x=ch_df["channel"], y=ch_df["fraud_count"],
-                name="Fraud", marker_color="#f85149",
-            ))
-            fig.update_layout(
-                title="Transactions by Channel", barmode="overlay",
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#8b949e"),
-                legend=dict(orientation="h", y=-0.15),
-                margin=dict(t=40, b=40, l=40, r=20), height=320,
-            )
+            fig.add_trace(go.Bar(x=ch_df["channel"], y=ch_df["total"], name="Total", marker_color="#58a6ff", opacity=0.5))
+            fig.add_trace(go.Bar(x=ch_df["channel"], y=ch_df["fraud_count"], name="Fraud", marker_color="#f85149"))
+            fig.update_layout(title="By Channel", barmode="overlay", legend=dict(orientation="h", y=-0.2), **chart_theme)
             fig.update_xaxes(gridcolor="#21262d")
             fig.update_yaxes(gridcolor="#21262d")
             st.plotly_chart(fig, use_container_width=True)
@@ -468,21 +404,12 @@ def render_charts(mongo):
                 tl = s.get("total_transactions", 0) - tf
                 if tf > 0 or tl > 0:
                     fig = go.Figure(data=[go.Pie(
-                        labels=["Legitimate", "Fraud"],
-                        values=[tl, tf],
+                        labels=["Legitimate", "Fraud"], values=[tl, tf],
                         marker=dict(colors=["#3fb950", "#f85149"]),
-                        hole=0.55, textinfo="label+percent",
-                        textfont=dict(size=12),
+                        hole=0.55, textinfo="label+percent", textfont=dict(size=12),
                     )])
-                    fig.update_layout(
-                        title="Transaction Distribution",
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="#8b949e"),
-                        margin=dict(t=40, b=20, l=20, r=20), height=320,
-                        showlegend=True,
-                        legend=dict(orientation="h", y=-0.1),
-                    )
+                    fig.update_layout(title="Distribution", showlegend=True,
+                                     legend=dict(orientation="h", y=-0.1), **chart_theme)
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No distribution data yet.")
@@ -491,7 +418,6 @@ def render_charts(mongo):
         else:
             st.info("MongoDB not connected.")
 
-    # Timeline
     tl_data = load_timeline(mongo)
     if tl_data:
         tl_df = pd.DataFrame(tl_data).rename(columns={"_id": "time"})
@@ -506,13 +432,7 @@ def render_charts(mongo):
             line=dict(color="#f85149", width=2, dash="dot"),
             fill="tozeroy", fillcolor="rgba(248,81,73,0.05)",
         ), secondary_y=True)
-        fig.update_layout(
-            title="Transaction Volume Over Time",
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#8b949e"),
-            legend=dict(orientation="h", y=-0.15),
-            margin=dict(t=40, b=40, l=40, r=40), height=320,
-        )
+        fig.update_layout(title="Volume Over Time", legend=dict(orientation="h", y=-0.15), **chart_theme)
         fig.update_xaxes(gridcolor="#21262d")
         fig.update_yaxes(gridcolor="#21262d", secondary_y=False)
         fig.update_yaxes(gridcolor="#21262d", secondary_y=True)
@@ -520,9 +440,9 @@ def render_charts(mongo):
 
 
 def render_model_metrics(metrics):
-    st.markdown('<div class="sec-head">🧠 Model Performance</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-head">Model Performance</div>', unsafe_allow_html=True)
     if not metrics:
-        st.info("No model metrics available. Train a model first.")
+        st.info("No model metrics available.")
         return
 
     items = [
@@ -535,56 +455,42 @@ def render_model_metrics(metrics):
     cols = st.columns(5)
     for col, (label, val) in zip(cols, items):
         with col:
-            st.markdown(f"""<div class="m-badge">
-                <div class="m-label">{label}</div>
-                <div class="m-val">{val:.4f}</div>
-            </div>""", unsafe_allow_html=True)
+            st.markdown(f'<div class="m-badge"><div class="m-label">{label}</div><div class="m-val">{val:.4f}</div></div>', unsafe_allow_html=True)
 
     ts = metrics.get("train_size", 0)
     tes = metrics.get("test_size", 0)
     st.caption(f"Trained on {ts:,} samples · Tested on {tes:,} samples")
 
 
-# ─────────────────────────────────────────────
-# Main
-# ─────────────────────────────────────────────
+# ── Main ──
 def main():
     mongo = get_mongo_client()
     redis_store = get_redis_client()
 
     render_header()
     render_kpis(load_stats(mongo, redis_store))
-
     st.markdown("")
 
-    # Full-width transaction table
     render_transactions(load_recent_transactions(mongo, redis_store))
-
     st.markdown("")
 
-    # Fraud alerts as horizontal strip
     render_alerts(load_fraud_alerts(redis_store))
-
     st.markdown("")
 
-    # Charts
     render_charts(mongo)
-
     st.markdown("")
 
-    # Model metrics
     render_model_metrics(load_model_metrics(mongo))
 
-    # Footer
     st.markdown("---")
-    fc1, fc2 = st.columns(2)
-    with fc1:
+    c1, c2 = st.columns(2)
+    with c1:
         conns = []
-        conns.append("MongoDB ✅" if mongo else "MongoDB ❌")
-        conns.append("Redis ✅" if redis_store else "Redis ❌")
-        st.caption(" · ".join(conns) + f" · Last refresh: {datetime.now().strftime('%H:%M:%S')}")
-    with fc2:
-        st.caption("Auto-refresh: 5s")
+        conns.append("MongoDB: connected" if mongo else "MongoDB: disconnected")
+        conns.append("Redis: connected" if redis_store else "Redis: disconnected")
+        st.caption(" · ".join(conns))
+    with c2:
+        st.caption(f"Last update: {datetime.now().strftime('%H:%M:%S')} · Auto-refresh: 5s")
 
     time.sleep(5)
     st.rerun()

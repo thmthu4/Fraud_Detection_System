@@ -153,7 +153,7 @@ def build_pipeline():
         maxIter=100,
         regParam=0.01,
         elasticNetParam=0.5,
-        threshold=0.5,
+        threshold=0.7,
     )
 
     pipeline = Pipeline(stages=[
