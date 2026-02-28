@@ -1,8 +1,8 @@
 """
 Spark ML Pipeline — Fraud Detection Model Training.
 
-Trains a GBTClassifier (Gradient Boosted Trees) on the digital wallet transaction dataset.
-Pipeline: Feature Engineering → StringIndexers → VectorAssembler → StandardScaler → GBT.
+Trains a LogisticRegression model on the digital wallet transaction dataset.
+Pipeline: Feature Engineering → StringIndexers → VectorAssembler → StandardScaler → LogisticRegression.
 Saves the trained PipelineModel to disk for use in streaming predictions.
 
 Dataset columns:
@@ -13,6 +13,7 @@ Dataset columns:
 """
 
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -28,7 +29,7 @@ from pyspark.ml.feature import (
     VectorAssembler,
     StandardScaler,
 )
-from pyspark.ml.classification import GBTClassifier
+from pyspark.ml.classification import LogisticRegression
 from pyspark.ml.evaluation import (
     BinaryClassificationEvaluator,
     MulticlassClassificationEvaluator,
@@ -145,15 +146,14 @@ def build_pipeline():
         withMean=True,
     )
 
-    # ── Classifier: Gradient Boosted Trees ──
-    classifier = GBTClassifier(
+    # ── Classifier: Logistic Regression ──
+    classifier = LogisticRegression(
         labelCol=settings.LABEL_COLUMN,
         featuresCol="features",
-        maxIter=50,
-        maxDepth=6,
-        stepSize=0.1,
-        subsamplingRate=0.8,
-        seed=42,
+        maxIter=100,
+        regParam=0.01,
+        elasticNetParam=0.5,
+        threshold=0.5,
     )
 
     pipeline = Pipeline(stages=[
@@ -192,12 +192,16 @@ def train_and_save(spark, dataset_path=None):
     print(f"\n📦 Train: {train_df.count()} rows | Test: {test_df.count()} rows")
 
     # ── Build & Train Pipeline ──
-    print("\n🚀 Training model...")
+    print("\n🚀 Training Logistic Regression model...")
     pipeline = build_pipeline()
+    train_start = time.time()
     model = pipeline.fit(train_df)
+    train_time = time.time() - train_start
 
     # ── Evaluate ──
+    eval_start = time.time()
     predictions = model.transform(test_df)
+    eval_time = time.time() - eval_start
 
     binary_evaluator = BinaryClassificationEvaluator(
         labelCol=settings.LABEL_COLUMN,
@@ -215,16 +219,41 @@ def train_and_save(spark, dataset_path=None):
     precision = multi_evaluator.evaluate(predictions, {multi_evaluator.metricName: "weightedPrecision"})
     recall = multi_evaluator.evaluate(predictions, {multi_evaluator.metricName: "weightedRecall"})
 
-    print(f"\n{'=' * 50}")
-    print(f"📈 MODEL EVALUATION RESULTS (GBT)")
-    print(f"{'=' * 50}")
-    print(f"   Algorithm: Gradient Boosted Trees")
-    print(f"   AUC-ROC:   {auc_roc:.4f}")
-    print(f"   Accuracy:  {accuracy:.4f}")
-    print(f"   Precision: {precision:.4f}")
-    print(f"   Recall:    {recall:.4f}")
-    print(f"   F1 Score:  {f1:.4f}")
-    print(f"{'=' * 50}")
+    # Fraud-specific metrics
+    tp = predictions.filter((col("prediction")==1.0) & (col(settings.LABEL_COLUMN)==1.0)).count()
+    fp = predictions.filter((col("prediction")==1.0) & (col(settings.LABEL_COLUMN)==0.0)).count()
+    fn = predictions.filter((col("prediction")==0.0) & (col(settings.LABEL_COLUMN)==1.0)).count()
+    tn = predictions.filter((col("prediction")==0.0) & (col(settings.LABEL_COLUMN)==0.0)).count()
+    fraud_prec = tp / (tp + fp) if (tp + fp) > 0 else 0
+    fraud_rec = tp / (tp + fn) if (tp + fn) > 0 else 0
+    fraud_f1 = 2 * fraud_prec * fraud_rec / (fraud_prec + fraud_rec) if (fraud_prec + fraud_rec) > 0 else 0
+
+    print(f"\n{'=' * 55}")
+    print(f"📈 MODEL EVALUATION — Logistic Regression")
+    print(f"{'=' * 55}")
+    print(f"   Algorithm:       Logistic Regression")
+    print(f"   RegParam:        0.01")
+    print(f"   ElasticNet:      0.5 (L1 + L2)")
+    print(f"{'─' * 55}")
+    print(f"   Training Time:   {train_time:.2f}s")
+    print(f"   Inference Time:  {eval_time:.2f}s")
+    print(f"{'─' * 55}")
+    print(f"   AUC-ROC:         {auc_roc:.4f}")
+    print(f"   Accuracy:        {accuracy:.4f}")
+    print(f"   Precision (wt):  {precision:.4f}")
+    print(f"   Recall (wt):     {recall:.4f}")
+    print(f"   F1 Score (wt):   {f1:.4f}")
+    print(f"{'─' * 55}")
+    print(f"   Fraud Precision: {fraud_prec:.4f}")
+    print(f"   Fraud Recall:    {fraud_rec:.4f}")
+    print(f"   Fraud F1:        {fraud_f1:.4f}")
+    print(f"{'─' * 55}")
+    print(f"   Confusion Matrix:")
+    print(f"                    Predicted")
+    print(f"                    Legit    Fraud")
+    print(f"   Actual Legit  | {tn:>6}   {fp:>6}")
+    print(f"   Actual Fraud  | {fn:>6}   {tp:>6}")
+    print(f"{'=' * 55}")
 
     # ── Save Model ──
     model_path = settings.MODEL_PATH

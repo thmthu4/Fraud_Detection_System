@@ -1,179 +1,171 @@
 # 🛡️ Real-Time Fraud Detection System
 
-A complete real-time fraud detection pipeline for **digital wallet transactions** built with:
+A real-time fraud detection pipeline for digital wallet transactions using **Kafka**, **Apache Spark**, **Redis**, **MongoDB**, and **Streamlit**.
 
-- **Apache Kafka** — Message streaming for real-time transaction ingestion
-- **Apache Spark** — ML model training (RandomForest) + Structured Streaming for predictions
-- **Redis** — In-memory feature store, fraud alerts, and real-time counters
-- **MongoDB** — Persistent storage for transactions, predictions, and model metrics
-- **Streamlit** — Real-time monitoring dashboard with dark-themed premium UI
-
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────┐     ┌──────────┐     ┌──────────────────────┐
-│   Dataset    │────▶│  Kafka   │────▶│  Spark Streaming     │
-│  (CSV File)  │     │  Topic   │     │  + ML Prediction     │
-└──────┬───────┘     └──────────┘     └──────┬───────┬───────┘
-       │                                     │       │
-       ▼                                     ▼       ▼
-┌──────────────┐                      ┌──────┐  ┌────────┐
-│ Spark ML     │                      │Redis │  │MongoDB │
-│ Training     │                      │Cache │  │Storage │
-└──────────────┘                      └───┬──┘  └────┬───┘
-                                          │          │
-                                          ▼          ▼
-                                    ┌──────────────────┐
-                                    │    Streamlit      │
-                                    │    Dashboard      │
-                                    └──────────────────┘
+CSV Dataset → Kafka Producer → Kafka Topic → Spark Streaming → ML Model (Logistic Regression)
+                                                    ↓
+                                              Redis (alerts) + MongoDB (storage)
+                                                    ↓
+                                            Streamlit Dashboard (localhost:8501)
 ```
 
-## 📋 Prerequisites
+## Prerequisites
 
-- **Docker & Docker Compose** — For running Kafka, Redis, and MongoDB
-- **Python 3.9+** — For the application code
-- **Java 11+** — Required by PySpark
-- **Your dataset** — CSV file with transaction data
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
+- No other dependencies needed — everything runs in containers
 
-## 🚀 Quick Start
+## Quick Start (Docker)
 
-### 1. Install Python Dependencies
+### 1. Clone and start
 
 ```bash
+git clone https://github.com/thmthu4/Fraud_Detection_System.git
+cd Fraud_Detection_System
+docker-compose up --build -d
+```
+
+### 2. Open the dashboard
+
+Go to **http://localhost:8501** in your browser.
+
+### 3. Watch it work
+
+The system will automatically:
+1. Start infrastructure (Zookeeper → Kafka → Redis → MongoDB)
+2. Train the Logistic Regression model on the dataset (~10 seconds)
+3. Start the Spark Streaming consumer (subscribes to Kafka)
+4. Stream transactions from `streaming_data.csv` into Kafka
+5. Display real-time fraud detection results on the dashboard
+
+### 4. Check logs
+
+```bash
+# See all service logs
+docker-compose logs -f
+
+# See specific service logs
+docker-compose logs -f trainer        # Model training progress
+docker-compose logs -f stream-processor  # Spark streaming output
+docker-compose logs -f producer       # Transaction streaming
+docker-compose logs -f dashboard      # Streamlit dashboard
+```
+
+### 5. Stop everything
+
+```bash
+docker-compose down           # Stop and remove containers
+docker-compose down -v        # Also remove data volumes (clean reset)
+```
+
+### 6. Restart (no rebuild needed)
+
+```bash
+docker-compose up -d          # Start again (uses cached images)
+docker-compose up --build -d  # Rebuild if code changed
+```
+
+## Local Development
+
+If you want to run the Python code on your machine (not in Docker):
+
+### Requirements
+- Python 3.12
+- Java 17 (for PySpark)
+
+### Setup
+
+```bash
+# Start only infrastructure in Docker
+docker-compose up -d zookeeper kafka redis mongodb
+
+# Create Python virtual environment
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-```
 
-### 2. Place Your Dataset
+# Train the model
+python3 model_training/train_model.py data/dataset.csv
 
-Put your CSV dataset in the `data/` folder:
-
-```bash
-cp /path/to/your/dataset.csv data/dataset.csv
-```
-
-**Expected columns** (standard fraud detection format):
-| Column | Description |
-|--------|-------------|
-| `step` | Time step (1 step = 1 hour) |
-| `type` | Transaction type (PAYMENT, TRANSFER, CASH_OUT, etc.) |
-| `amount` | Transaction amount |
-| `nameOrig` | Origin account name |
-| `oldbalanceOrg` | Origin balance before |
-| `newbalanceOrig` | Origin balance after |
-| `nameDest` | Destination account name |
-| `oldbalanceDest` | Destination balance before |
-| `newbalanceDest` | Destination balance after |
-| `isFraud` | Fraud label (0 or 1) |
-
-### 3. Start Infrastructure Services
-
-```bash
-./scripts/start_services.sh
-```
-
-This starts Kafka, Redis, MongoDB, initializes indexes, and creates topics.
-
-### 4. Run the Full Pipeline
-
-```bash
+# Run the full pipeline (streaming + dashboard)
 ./scripts/run_pipeline.sh data/dataset.csv
+
+# Open http://localhost:8501
 ```
 
-This will:
-1. 🧠 **Train the ML model** using your dataset
-2. 📡 **Start Spark Streaming** consumer
-3. 📤 **Start Kafka Producer** (streams your dataset)
-4. 🌐 **Launch Dashboard** at http://localhost:8501
-
-## 📦 Running Components Individually
-
-### Train Model Only
+### Useful commands
 
 ```bash
-python model_training/train_model.py data/dataset.csv
-```
+# Evaluate model performance
+python3 model_training/evaluate_model.py data/dataset.csv
 
-### Evaluate Model
+# Force retrain the model
+./scripts/run_pipeline.sh data/dataset.csv --retrain
 
-```bash
-python model_training/evaluate_model.py data/dataset.csv
-```
+# Run only the producer
+python3 kafka_producer/producer.py --dataset data/streaming_data.csv --delay 50
 
-### Start Stream Processor
-
-```bash
-python spark_streaming/stream_processor.py
-```
-
-### Start Kafka Producer
-
-```bash
-python kafka_producer/producer.py --dataset data/dataset.csv --delay 100 --limit 5000
-```
-
-### Launch Dashboard
-
-```bash
+# Run only the dashboard
 streamlit run dashboard/app.py --server.port 8501
 ```
 
-## 🗂️ Project Structure
+## Model Performance
+
+| Metric | Value |
+|--------|-------|
+| Algorithm | Logistic Regression (Spark ML) |
+| Training Time | ~10 seconds |
+| AUC-ROC | 0.9427 |
+| Accuracy | 97.85% |
+| Fraud Precision | 99.32% |
+| Fraud Recall | 77.78% |
+| False Positives | 1 |
+| Dataset | 10,385 transactions (9.5% fraud) |
+| Features | 16 engineered features |
+
+### Confusion Matrix
 
 ```
-├── docker-compose.yml              # Kafka, Zookeeper, Redis, MongoDB
-├── requirements.txt                # Python dependencies
-├── .env                            # Configuration variables
-├── config/
-│   └── settings.py                 # Centralized configuration
+                Predicted
+                Legit    Fraud
+Actual Legit |   1814        1     ← Almost zero false alarms
+Actual Fraud |     42      147     ← Catches 78% of fraud
+```
+
+## Project Structure
+
+```
+├── config/              # Centralized settings (env-based)
+├── dashboard/           # Streamlit real-time dashboard
+├── data/
+│   ├── dataset.csv      # Training dataset (10,385 rows)
+│   └── streaming_data.csv  # Streaming dataset (with Burmese names)
+├── database/            # MongoDB client and init scripts
+├── feature_store/       # Redis feature store
+├── kafka_producer/      # Transaction stream simulator
 ├── model_training/
-│   ├── train_model.py              # Spark ML pipeline
-│   └── evaluate_model.py           # Model evaluation report
-├── kafka_producer/
-│   └── producer.py                 # Transaction simulator → Kafka
-├── spark_streaming/
-│   └── stream_processor.py         # Kafka consumer + fraud prediction
-├── feature_store/
-│   └── redis_client.py             # Redis feature store
-├── database/
-│   ├── mongo_client.py             # MongoDB operations
-│   └── init_db.py                  # Initialize MongoDB indexes
-├── dashboard/
-│   └── app.py                      # Streamlit real-time dashboard
+│   ├── train_model.py   # Spark ML training pipeline
+│   └── evaluate_model.py  # Model evaluation with metrics
 ├── scripts/
-│   ├── start_services.sh           # Start Docker services
-│   ├── run_pipeline.sh             # Run full pipeline
-│   └── stop_services.sh            # Stop all services
-├── data/                           # Your dataset goes here
-└── models/                         # Trained models saved here
+│   ├── run_pipeline.sh  # Full pipeline runner
+│   ├── start_services.sh  # Start Docker infrastructure
+│   └── stop_services.sh   # Stop Docker infrastructure
+├── spark_streaming/     # Spark Structured Streaming consumer
+├── docker-compose.yml   # Full stack (8 services)
+├── Dockerfile           # Python app container
+└── requirements.txt     # Python dependencies
 ```
 
-## ⚙️ Configuration
+## Tech Stack
 
-All settings are in `.env`. Key parameters:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
-| `KAFKA_TOPIC` | `wallet_transactions` | Topic name |
-| `MONGO_URI` | `mongodb://localhost:27017` | MongoDB connection |
-| `REDIS_HOST` | `localhost` | Redis host |
-| `PRODUCER_DELAY_MS` | `100` | Delay between messages (ms) |
-| `SPARK_MASTER` | `local[*]` | Spark master URL |
-
-## 🔧 Cleanup
-
-```bash
-./scripts/stop_services.sh
-```
-
-## 📊 Dashboard Features
-
-- **KPI Cards** — Total transactions, fraud detected, fraud rate, avg amount
-- **Transaction Feed** — Live table with fraud probability color-coding
-- **Fraud Alerts** — Real-time red-highlighted alerts for high-risk transactions
-- **Type Analysis** — Bar chart of fraud by transaction type
-- **Distribution** — Donut chart of fraud vs legitimate
-- **Timeline** — Time-series of transaction volume and fraud rate
-- **Model Metrics** — AUC-ROC, accuracy, precision, recall, F1
-- **Auto-Refresh** — Updates every 5 seconds
+| Component | Technology |
+|-----------|-----------|
+| Ingestion | Apache Kafka |
+| Processing | Apache Spark (Structured Streaming) |
+| ML Model | Spark ML — Logistic Regression |
+| Feature Store | Redis |
+| Database | MongoDB |
+| Dashboard | Streamlit + Plotly |
+| Container | Docker + Docker Compose |

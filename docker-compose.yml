@@ -1,17 +1,14 @@
 version: '3.8'
 
 services:
-  # ─────────────────────────────────────────────
-  # Zookeeper — Kafka dependency
-  # ─────────────────────────────────────────────
+  # ─── Infrastructure ───
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: fraud-zookeeper
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
     networks:
       - fraud-net
     healthcheck:
@@ -20,17 +17,14 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─────────────────────────────────────────────
-  # Kafka Broker
-  # ─────────────────────────────────────────────
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: fraud-kafka
+    restart: unless-stopped
     depends_on:
       - zookeeper
     ports:
       - "9092:9092"
-      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -48,12 +42,10 @@ services:
       timeout: 10s
       retries: 10
 
-  # ─────────────────────────────────────────────
-  # Redis — Feature Store / Real-time Cache
-  # ─────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: fraud-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
@@ -67,12 +59,10 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─────────────────────────────────────────────
-  # MongoDB — Persistent Storage
-  # ─────────────────────────────────────────────
   mongodb:
     image: mongo:7.0
     container_name: fraud-mongodb
+    restart: unless-stopped
     ports:
       - "27017:27017"
     environment:
@@ -87,9 +77,83 @@ services:
       timeout: 5s
       retries: 5
 
+  # ─── Application ───
+  trainer:
+    build: .
+    container_name: fraud-trainer
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MONGO_URI: mongodb://mongodb:27017
+      REDIS_HOST: redis
+    volumes:
+      - model-data:/app/models
+    command: python3 model_training/train_model.py data/dataset.csv
+    networks:
+      - fraud-net
+
+  stream-processor:
+    build: .
+    container_name: fraud-stream
+    restart: unless-stopped
+    depends_on:
+      trainer:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MONGO_URI: mongodb://mongodb:27017
+      REDIS_HOST: redis
+    volumes:
+      - model-data:/app/models
+    command: python3 spark_streaming/stream_processor.py
+    networks:
+      - fraud-net
+
+  producer:
+    build: .
+    container_name: fraud-producer
+    restart: unless-stopped
+    depends_on:
+      stream-processor:
+        condition: service_started
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    command: >
+      bash -c "sleep 15 && python3 kafka_producer/producer.py
+      --dataset data/streaming_data.csv --delay 50"
+    networks:
+      - fraud-net
+
+  dashboard:
+    build: .
+    container_name: fraud-dashboard
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    environment:
+      MONGO_URI: mongodb://mongodb:27017
+      REDIS_HOST: redis
+    command: streamlit run dashboard/app.py --server.port 8501 --server.headless true
+    networks:
+      - fraud-net
+
 volumes:
   redis-data:
   mongo-data:
+  model-data:
 
 networks:
   fraud-net:
