@@ -151,9 +151,9 @@ def build_pipeline():
         labelCol=settings.LABEL_COLUMN,
         featuresCol="features",
         maxIter=100,
-        regParam=0.01,
+        regParam=0.03,
         elasticNetParam=0.5,
-        threshold=0.7,
+        threshold=0.35,
     )
 
     pipeline = Pipeline(stages=[

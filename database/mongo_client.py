@@ -198,6 +198,47 @@ class MongoDBClient:
         return (latest.get("version", 0) + 1) if latest else 1
 
     # ─────────────────────────────────────────────
+    # Case Management
+    # ─────────────────────────────────────────────
+    def get_fraud_cases(self, status_filter=None, limit=50):
+        """Get fraud cases for review."""
+        query = {"prediction": 1.0}
+        if status_filter and status_filter != "all":
+            query["case_status"] = status_filter
+        return list(
+            self.transactions.find(query, {"_id": 0})
+            .sort("inserted_at", DESCENDING)
+            .limit(limit)
+        )
+
+    def update_case_status(self, transaction_id, new_status, reviewer="analyst"):
+        """Update case status: confirmed, false_positive, under_review, pending."""
+        result = self.transactions.update_one(
+            {"transaction_id": transaction_id},
+            {"$set": {
+                "case_status": new_status,
+                "reviewed_by": reviewer,
+                "reviewed_at": datetime.utcnow().isoformat(),
+            }},
+        )
+        return result.modified_count > 0
+
+    def get_case_stats(self):
+        """Get case management statistics."""
+        pipeline = [
+            {"$match": {"prediction": 1.0}},
+            {"$group": {
+                "_id": {"$ifNull": ["$case_status", "pending"]},
+                "count": {"$sum": 1},
+            }},
+        ]
+        results = list(self.transactions.aggregate(pipeline))
+        stats = {"pending": 0, "confirmed": 0, "false_positive": 0, "under_review": 0}
+        for r in results:
+            stats[r["_id"]] = r["count"]
+        return stats
+
+    # ─────────────────────────────────────────────
     # Utilities
     # ─────────────────────────────────────────────
     def get_collection_stats(self):
@@ -210,3 +251,4 @@ class MongoDBClient:
     def close(self):
         """Close the MongoDB connection."""
         self.client.close()
+

@@ -164,6 +164,7 @@ def process_batch(batch_df, batch_id, model):
         mongo = MongoDBClient()
 
         fraud_count = 0
+        blocked_count = 0
         transactions_to_insert = []
 
         for row in results:
@@ -173,6 +174,20 @@ def process_batch(batch_df, batch_id, model):
             for k, v in tx_data.items():
                 if hasattr(v, "item"):
                     tx_data[k] = v.item()
+
+            prob = tx_data.get("fraud_probability", 0)
+            is_fraud = tx_data.get("prediction", 0) == 1.0
+
+            # ── Flag transactions (admin will review and take action) ──
+            if is_fraud and prob > 0.9:
+                tx_data["action"] = "pending_block"
+                tx_data["case_status"] = "pending"
+                blocked_count += 1
+            elif is_fraud:
+                tx_data["action"] = "pending_review"
+                tx_data["case_status"] = "pending"
+            else:
+                tx_data["action"] = "allowed"
 
             transactions_to_insert.append(tx_data)
 
@@ -184,11 +199,11 @@ def process_batch(batch_df, batch_id, model):
             redis_store.update_user_stats(
                 tx_data.get("customer_id", "unknown"),
                 tx_data.get("amount_src", 0),
-                is_fraud=(tx_data.get("prediction", 0) == 1.0),
+                is_fraud=is_fraud,
             )
 
-            # Fraud alert
-            if tx_data.get("prediction", 0) == 1.0:
+            # Fraud alert (for dashboard display only — no action taken)
+            if is_fraud:
                 fraud_count += 1
                 redis_store.increment_fraud_count()
                 redis_store.store_fraud_alert(
@@ -203,11 +218,11 @@ def process_batch(batch_df, batch_id, model):
         redis_store.close()
         mongo.close()
 
-        print(f"   ✅ Batch {batch_id} processed in {processing_time:.2f}s")
-        print(f"   📊 Total: {len(results)} | 🚨 Fraud: {fraud_count}")
+        print(f"   Batch {batch_id} processed in {processing_time:.2f}s")
+        print(f"   Total: {len(results)} | Fraud: {fraud_count} | High-risk: {blocked_count}")
 
     except Exception as e:
-        print(f"   ⚠️  Error writing batch {batch_id}: {e}")
+        print(f"   Error writing batch {batch_id}: {e}")
         import traceback
         traceback.print_exc()
 

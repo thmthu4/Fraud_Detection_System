@@ -20,6 +20,7 @@ COPY kafka_producer/ kafka_producer/
 COPY spark_streaming/ spark_streaming/
 COPY feature_store/ feature_store/
 COPY database/ database/
+COPY notifications/ notifications/
 COPY dashboard/ dashboard/
 COPY data/ data/
 COPY scripts/ scripts/
