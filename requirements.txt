@@ -3,6 +3,7 @@ pyspark==3.5.1
 kafka-python-ng==2.2.3
 redis==5.0.1
 pymongo==4.6.1
+setuptools==69.0.3
 
 # ─── Dashboard ───
 streamlit==1.31.0
