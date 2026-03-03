@@ -12,7 +12,7 @@ services:
     networks:
       - fraud-net
     healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      test: ["CMD", "cub", "zk-ready", "localhost:2181", "10"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,7 +38,7 @@ services:
     networks:
       - fraud-net
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
+      test: ["CMD", "cub", "kafka-ready", "-b", "localhost:9092", "1", "20"]
       interval: 15s
       timeout: 10s
       retries: 10
